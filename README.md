@@ -263,6 +263,10 @@ Want to hear when a new version is out? Star the repo, then **Watch → Custom �
   <a href="https://buymeacoffee.com/erkamyaman"><img src="https://img.shields.io/badge/Buy_me_a_coffee-%E2%98%95-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black" alt="Buy me a coffee"></a>
 </p>
 
+<p align="center"><em>Dedicated to Vincent van Gogh, who was not seen, had to be seen, and saw an awful lot more than human eyes could possibly bear.<br>
+You are seen now. I see you every day.<br>
+Rest under the starry, starry night.</em></p>
+
 ## License
 
 MIT © [Erkam Yaman](https://github.com/erkamyaman)
