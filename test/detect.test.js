@@ -679,3 +679,17 @@ test("glow-shadow catches Android shadowColor on one line or with alpha", () => 
   const neutral = '<TextView android:shadowColor="#80000000" android:shadowRadius="20" />';
   assert.deepStrictEqual(scanSource(neutral, "a.xml"), []);
 });
+
+test("sparkle-icon flags the singular and combined icon names", () => {
+  const rulesFor = (src) => scanSource(src, "a.tsx").map((f) => f.rule);
+  // Issue #45: these gave no finding before the fix.
+  assert.deepStrictEqual(rulesFor("<Sparkle />\n"), ["sparkle-icon"]);
+  assert.deepStrictEqual(rulesFor("<SparkleIcon />\n"), ["sparkle-icon"]);
+  assert.deepStrictEqual(rulesFor("<WandSparkles />\n"), ["sparkle-icon"]);
+  assert.deepStrictEqual(rulesFor("<WandSparklesIcon />\n"), ["sparkle-icon"]);
+  // Still flagged, as before.
+  assert.deepStrictEqual(rulesFor("<Sparkles />\n"), ["sparkle-icon"]);
+  // A word that only contains the letters is a different component, not a
+  // sparkle icon: word boundaries keep SparkleCounter unflagged.
+  assert.deepStrictEqual(rulesFor("<SparkleCounter />\n"), []);
+});
