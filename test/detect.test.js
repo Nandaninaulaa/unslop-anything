@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const path = require("path");
-const { scan, scanSource, rules, isSlopHue, main } = require("../skills/unslop-anything/scripts/detect.js");
+const { scan, scanSource, rules, isSlopHue, main, blankComments } = require("../skills/unslop-anything/scripts/detect.js");
 
 const fixtures = path.join(__dirname, "fixtures");
 
@@ -978,6 +978,60 @@ test("sparkle-icon flags the singular and combined icon names", () => {
   // A word that only contains the letters is a different component, not a
   // sparkle icon: word boundaries keep SparkleCounter unflagged.
   assert.deepStrictEqual(rulesFor("<SparkleCounter />\n"), []);
+});
+
+test("sparkle-icon flags sparkle-derived SF Symbols but not words containing sparkles", () => {
+  const src = [
+    "import SwiftUI",
+    "struct A: View {",
+    "  var body: some View {",
+    "    VStack {",
+    '      Image(systemName: "wand.and.sparkles")',
+    '      Label("Summarize", systemImage: "sparkles.rectangle.stack")',
+    '      Image(systemName: "sparkle")',
+    '      Image(systemName: "sparkles")',
+    '      Image(systemName: "wand.and.stars")',
+    '      Image(systemName: "wand.and.stars.inverse")',
+    '      Image(systemName: "wand.and.sparkles.inverse")',
+    '      Text("sparkles.rectangle.stack\'s label")',
+    '      Text("\'sparkles\'")',
+    '      Text("not \\"sparkles\\" here")',
+    "    }",
+    "  }",
+    "}",
+    'let quietSymbols = ["sparkles_count", "no sparkles here"]',
+  ].join("\n");
+
+  const findings = scanSource(src, "a.swift").filter((f) => f.rule === "sparkle-icon");
+  assert.deepStrictEqual(findings.map((f) => f.line), [5, 6, 7, 8, 9, 10, 11]);
+});
+
+test("sparkle-icon ignores prose apostrophes but still scans later literals", () => {
+  const doubleQuote = 'const view = <><p>Don\'t forget</p><Icon name="sparkles" /></>;';
+  const singleQuote = "const view = <><p>Don't forget</p><Icon name='sparkles' /></>;";
+  for (const src of [doubleQuote, singleQuote]) {
+    assert.deepStrictEqual(scanSource(src, "a.tsx").map((f) => f.rule), ["sparkle-icon"]);
+  }
+});
+
+test("sparkle-icon scans nested Swift interpolation and raw strings", () => {
+  const interpolation = "let label = \"Icon: \\(Image(systemName: \"sparkles\"))\"";
+  assert.deepStrictEqual(scanSource(interpolation, "a.swift").map((f) => f.rule), ["sparkle-icon"]);
+
+  assert.deepStrictEqual(scanSource('let icon = #"sparkles"#', "a.swift").map((f) => f.rule), ["sparkle-icon"]);
+
+  const prose = "let label = #\"Use \"'sparkles'\" as text\"#";
+  assert.deepStrictEqual(scanSource(prose, "a.swift"), []);
+});
+
+test("blankComments keeps slashes inside Swift raw strings and still finds later symbols", () => {
+  const src = [
+    'let label = #"A "// B"#',
+    'let icon = Image(systemName: "sparkles")',
+  ].join("\n");
+
+  assert.ok(blankComments(src, "swift").includes("// B"));
+  assert.deepStrictEqual(scanSource(src, "a.swift").map((f) => f.rule), ["sparkle-icon"]);
 });
 
 test("glow-shadow flags #0000ff and a saturated second color in a shadow list, but not whole-black or neutral-only lists", () => {

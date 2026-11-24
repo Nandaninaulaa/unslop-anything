@@ -139,6 +139,18 @@ function blankComments(text, stack) {
       i = skipRegex(text, i);
       continue;
     }
+    if (stack === "swift" && c === '"') {
+      // Swift raw strings use #"..."# (or more hashes). Quotes and // inside
+      // them are literal text, not delimiters or comments.
+      let hashes = 0;
+      while (text[i - 1 - hashes] === "#") hashes++;
+      if (hashes > 0) {
+        const closing = '"' + "#".repeat(hashes);
+        const end = text.indexOf(closing, i + 1);
+        i = end === -1 ? text.length : end + closing.length;
+        continue;
+      }
+    }
     if (c === '"' || c === "`" || (c === "'" && stack !== "swift")) {
       // An apostrophe between letters is prose (JSX text such as Don't), not a string.
       if (c === "'" && /[A-Za-z]/.test(text[i - 1] || "") && /[A-Za-z]/.test(next || "")) { i++; continue; }
@@ -147,6 +159,94 @@ function blankComments(text, stack) {
     i++;
   }
   return out.join("");
+}
+
+// Collect string literal contents with their starting offsets. This is used by
+// rules that care about a whole literal rather than text inside it. It keeps
+// JSX prose apostrophes, Swift interpolation and Swift raw strings from being
+// mistaken for ordinary quote delimiters.
+function stringLiterals(code, stack) {
+  const literals = [];
+  const proseApostrophe = (i) =>
+    code[i] === "'" && /[A-Za-z]/.test(code[i - 1] || "") && /[A-Za-z]/.test(code[i + 1] || "");
+  const quoteStart = (i) =>
+    !proseApostrophe(i) && (code[i] === '"' || code[i] === "'" || code[i] === "`");
+
+  const rawHashes = (i) => {
+    if (stack !== "swift" || code[i] !== '"') return 0;
+    let count = 0;
+    while (code[i - 1 - count] === "#") count++;
+    return count;
+  };
+
+  // `i` points at the backslash in a Swift \(...) interpolation. Nested
+  // literals are collected here so the outer literal can resume after the
+  // matching parenthesis instead of closing at the nested quote.
+  const scanInterpolation = (i) => {
+    let depth = 0;
+    let j = i + 2;
+    while (j < code.length) {
+      if (code[j] === "\\" && code[j + 1] === "(") {
+        j = scanInterpolation(j);
+        continue;
+      }
+      if (quoteStart(j)) {
+        j = readLiteral(j);
+        continue;
+      }
+      if (code[j] === "(") depth++;
+      else if (code[j] === ")") {
+        if (depth === 0) return j + 1;
+        depth--;
+      }
+      j++;
+    }
+    return j;
+  };
+
+  function readLiteral(start) {
+    const quote = code[start];
+    const hashes = rawHashes(start);
+    const from = start + 1;
+    let j = from;
+    while (j < code.length) {
+      const c = code[j];
+      if (hashes > 0) {
+        // In a raw string, quotes are literal and backslashes do not escape.
+        // Only the closing quote followed by the same number of # ends it.
+        if (c === '"' && code.slice(j + 1, j + 1 + hashes) === "#".repeat(hashes)) {
+          literals.push({ start, contents: code.slice(from, j) });
+          return j + 1 + hashes;
+        }
+        j++;
+        continue;
+      }
+      if (c === "\\") {
+        if (quote === '"' && code[j + 1] === "(") {
+          j = scanInterpolation(j);
+        } else {
+          j += 2;
+        }
+        continue;
+      }
+      if (c === quote) {
+        literals.push({ start, contents: code.slice(from, j) });
+        return j + 1;
+      }
+      j++;
+    }
+    literals.push({ start, contents: code.slice(from, j) });
+    return j;
+  }
+
+  for (let i = 0; i < code.length; ) {
+    if (quoteStart(i)) {
+      i = readLiteral(i);
+    } else {
+      i++;
+    }
+  }
+  return literals;
 }
 
 // A slash starts a regex literal when it follows an operator, an opening
@@ -535,9 +635,22 @@ const rules = [
     stacks: null,
     message: "Sparkle icon. It usually marks an AI feature or stands in for meaning.",
     fix: "Use an icon that names the action, or a text label. If it marks an AI feature, make sure that feature is not in the way of the core task.",
-    find({ code }) {
-      const re = /["']sparkles?["']|["']wand\.and\.stars|\bauto_awesome\b|\bAutoAwesome\b|\bSparkles\b|\bSparklesIcon\b|\bSparkle\b|\bSparkleIcon\b|\bWandSparkles\b|\bWandSparklesIcon\b|✨/;
-      return [...matches(re, code)].map((m) => m.index);
+    find({ code, stack }) {
+      // SF Symbols are often derived from "sparkle"/"sparkles" or
+      // "wand.and.stars"/"wand.and.sparkles", for example
+      // "sparkles.rectangle.stack" and "wand.and.stars.inverse". Check the
+      // complete string literal so a quoted symbol is only flagged when the
+      // literal is exactly that symbol; substrings and apostrophes inside
+      // longer text stay quiet.
+      const symbol = /^(?:sparkles?(?:\.[a-z0-9._-]+)?|wand\.and\.(?:stars|sparkles)(?:\.[a-z0-9._-]+)?)$/;
+      const re = /\bauto_awesome\b|\bAutoAwesome\b|\bSparkles\b|\bSparklesIcon\b|\bSparkle\b|\bSparkleIcon\b|\bWandSparkles\b|\bWandSparklesIcon\b|✨/;
+      const hits = [...matches(re, code)].map((m) => m.index);
+
+      for (const literal of stringLiterals(code, stack)) {
+        if (symbol.test(literal.contents)) hits.push(literal.start);
+      }
+
+      return hits.sort((a, b) => a - b);
     },
   },
   {
