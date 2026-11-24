@@ -942,6 +942,43 @@ test("glow-shadow catches Tailwind colored and arbitrary shadows while ignoring 
   assert.deepStrictEqual(scanSource(neutral, "a.tsx"), []);
 });
 
+test("glow-shadow skips inset accent bars with no blur (#111)", () => {
+  const bars = [
+    ".line.highlighted {",
+    "  box-shadow: inset 2px 0 0 rgb(226 86 15 / 0.6);",
+    "}",
+    ".tab.active {",
+    "  box-shadow: inset 0 -2px 0 #e0763f;",
+    "}",
+    ".edge {",
+    "  box-shadow: inset 0 1px #7c3aed;",
+    "}",
+  ].join("\n");
+  assert.deepStrictEqual(scanSource(bars, "a.css"), []);
+  assert.deepStrictEqual(scanSource('<div className="shadow-[inset_2px_0_0_#e0763f]">x</div>', "a.tsx"), []);
+
+  const glows = [
+    ".btn {",
+    "  box-shadow: 0 0 24px rgb(224 118 63 / 0.7);",
+    "}",
+    ".ring {",
+    "  box-shadow: inset 0 0 12px #7c3aed;",
+    "}",
+    ".mixed {",
+    "  box-shadow: inset 2px 0 0 #e0763f, 0 0 30px #7c3aed;",
+    "}",
+  ].join("\n");
+  assert.deepStrictEqual(scanSource(glows, "a.css").map((f) => [f.rule, f.line]), [
+    ["glow-shadow", 2],
+    ["glow-shadow", 5],
+    ["glow-shadow", 8],
+  ]);
+  assert.deepStrictEqual(
+    scanSource('<div className="shadow-[0_0_40px_#7c3aed]">x</div>', "a.tsx").map((f) => f.rule),
+    ["glow-shadow"],
+  );
+});
+
 test("hover-scale flags Tailwind arbitrary scale values of 1.02 and above", () => {
   const rulesFor = (src) => scanSource(src, "a.tsx").map((f) => f.rule);
   // The issue's example line, plus the group- prefix variant.

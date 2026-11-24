@@ -449,6 +449,28 @@ function gradientScope(text, start, name) {
 // ---------- rules ----------
 // Each rule gets ctx { code, stack, file } and returns indexes into code.
 
+function glowLayers(list) {
+  const layers = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i <= list.length; i++) {
+    const c = list[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if ((c === "," && depth === 0) || i === list.length) {
+      layers.push(list.slice(start, i));
+      start = i + 1;
+    }
+  }
+  return layers
+    .filter((layer) => {
+      if (!/\binset\b/.test(layer)) return true;
+      const lengths = layer.replace(/[a-z]+\([^)]*\)|#[0-9a-f]+/gi, " ").match(/-?\d*\.?\d+(?:px|rem|em)?\b/g) || [];
+      return lengths.length >= 3 && parseFloat(lengths[2]) > 0;
+    })
+    .join(",");
+}
+
 const rules = [
   {
     id: "slop-gradient",
@@ -521,7 +543,9 @@ const rules = [
     find({ code, stack }) {
       const hits = [];
       for (const m of matches(/\.shadow\(\s*color:\s*([^,)]+)|shadowColor\s*[:=]\s*["']?([^"',;\n}]+)|(?:ambientColor|spotColor)\s*=\s*([^,)\n]+)|BoxShadow\(\s*color:\s*([^,)\n]+)|box-shadow:\s*([^;\n]+)|\bshadow-((?:purple|violet|indigo|pink|fuchsia|blue|cyan|teal)-\d{2,3})\b|\bshadow-\[([^\]\n]+)\]/, code)) {
-        const value = m.slice(1).find(Boolean) || "";
+        const raw = m.slice(1).find(Boolean) || "";
+        const value = m[5] || m[7] ? glowLayers(raw.replace(/_/g, " ")) : raw;
+        if (!value) continue;
         if (/black|gray|grey|shadow|\.primary\b|label|0x[0-9a-f]{2}000000|#000(?:000)?(?:[0-9a-f]{2})?\b|#000[0-9a-f]\b|rgba?\([\s_]*0(?:[\s_]*,[\s_]*|[\s_]+)0(?:[\s_]*,[\s_]*|[\s_]+)0/i.test(value)) continue;
         const named = /(?:\.|Colors\.|Color\.|\b)(purple|deepPurple|indigo|violet|pink|magenta|fuchsia|blue|cyan|teal|mint|accentColor|accent)\b/i.test(value);
         const hex = hexColors(value, stack).some(isSaturated);
