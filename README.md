@@ -253,7 +253,7 @@ Want to hear when a new version is out? Star the repo, then **Watch → Custom �
   <a href="https://github.com/sponsors/erkamyaman">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/sponsors-dark.svg">
-      <img src="docs/sponsors/sponsors-light.svg" width="800" alt="Sponsors: Santosh Yadav, Hakan Soytürk, Ali Yilmaz, Ashley Hunter, Fatih Uzuntaş">
+      <img src="docs/sponsors/sponsors-light.svg" width="800" alt="Sponsors: Santosh Yadav, Hakan Soytürk, Ali Yilmaz, Ashley Hunter, Fatih Uzuntaş, bugrcvi">
     </picture>
   </a>
 </p>
