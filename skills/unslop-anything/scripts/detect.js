@@ -1206,12 +1206,12 @@ function listRulesJson() {
   })), null, 2);
 }
 
-const USAGE = `Usage: unslop-anything detect [paths...] [--json] [--platform mobile|web|universal] [--ignore rule,rule] [--include-tests] [--list-rules]
+const USAGE = `Usage: unslop-anything detect [paths...] [--json] [--platform mobile|web|universal] [--fail-on critical|noticeable|minor] [--ignore rule,rule] [--include-tests] [--list-rules]
 
 Scans mobile and web source for generated-looking UI, website-in-a-phone patterns,
 and accessibility and motion defaults. The platform comes from the nearest
 package.json; --platform overrides it.
-Exit code: 0 clean, 2 findings, 1 error.
+Exit code: 0 clean, 2 findings at or above --fail-on (default minor), 1 error.
 Silence one line with a comment: unslop-anything-ignore <rule-id>
 Project config: .unslop-anything/config.json  { "ignoreRules": [], "ignorePaths": [] }`;
 
@@ -1228,6 +1228,7 @@ function main(argv) {
   const json = args.includes("--json");
   const includeTests = args.includes("--include-tests");
   let platform = null;
+  let failOn = "minor";
   const ignoreRules = [];
   const targets = [];
   for (let i = 0; i < args.length; i++) {
@@ -1240,6 +1241,16 @@ function main(argv) {
       }
       if (!["mobile", "web", "universal"].includes(platform)) {
         console.error(`Unknown platform: ${platform}. Choose from mobile, web, universal.`);
+        return 1;
+      }
+    } else if (a === "--fail-on") {
+      failOn = args[++i];
+      if (failOn === undefined) {
+        console.error("Missing value for --fail-on. Choose from critical, noticeable, minor.");
+        return 1;
+      }
+      if (!Object.prototype.hasOwnProperty.call(SEVERITY_RANK, failOn)) {
+        console.error(`Unknown severity: ${failOn}. Choose from critical, noticeable, minor.`);
         return 1;
       }
     } else if (a === "--ignore") {
@@ -1280,7 +1291,12 @@ function main(argv) {
     console.error(result.message);
     return 1;
   }
-  return result.findings.length ? 2 : 0;
+  // Findings below --fail-on are still printed; only findings at or above
+  // the threshold fail the scan. SEVERITY_RANK orders critical (0) above
+  // noticeable (1) above minor (2), so a finding fails when its rank is
+  // at most the threshold's rank. Default minor keeps today's behavior.
+  const failing = result.findings.some((f) => SEVERITY_RANK[f.severity] <= SEVERITY_RANK[failOn]);
+  return failing ? 2 : 0;
 }
 
 module.exports = { rules, scan, scanSource, blankComments, isSlopHue, main };
