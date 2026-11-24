@@ -494,6 +494,24 @@ test("img-no-alt flags Next.js <Image> without alt, and ignores <ImageGallery>",
   assert.deepStrictEqual(rulesFor("<Image source={logo} accessibilityLabel=\"Logo\" />\n"), []);
 });
 
+test("clickable-div flags a href-less anchor with onClick", () => {
+  const findingsFor = (src) => scanSource(src, "a.tsx");
+  const src = [
+    "<a onClick={go}>Go</a>",
+    "<span onClick={go}>Go</span>",
+    '<a href="/docs" onClick={track}>Docs</a>',
+    "",
+  ].join("\n");
+  const flagged = findingsFor(src).filter((f) => f.rule === "clickable-div").map((f) => f.line);
+  assert.deepStrictEqual(flagged, [1, 2]);
+  assert.deepStrictEqual(scanSource('<a :href="url" @click="track">Docs</a>\n', "a.vue"), []);
+  // A button role with a tabIndex is the one escape hatch for anchors...
+  assert.deepStrictEqual(findingsFor('<a onClick={go} role="button" tabIndex={0}>Go</a>\n'), []);
+  // ...but role alone or tabIndex alone does not excuse it.
+  assert.deepStrictEqual(findingsFor('<a onClick={go} role="button">Go</a>\n').map((f) => f.rule), ["clickable-div"]);
+  assert.deepStrictEqual(findingsFor('<a onClick={go} tabIndex={0}>Go</a>\n').map((f) => f.rule), ["clickable-div"]);
+});
+
 test("unverified-claim allows one adjective between the number and the noun", () => {
   const rulesFor = (src) => scanSource(src, "a.tsx").map((f) => f.rule);
   assert.deepStrictEqual(rulesFor("<p>Join 10,000+ customers</p>\n"), ["unverified-claim"]);
