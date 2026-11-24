@@ -404,8 +404,11 @@ const rules = [
     find({ code, stack }) {
       const re = stack === "xml"
         ? /#(?:[fF]{2})?(?:6200[eE][eE]|3700[bB]3|[bB][bB]86[fF][cC])\b/
-        : /seedColor:\s*Colors\.deepPurple|0x[fF]{2}(?:6650[aA]4|[dD]0[bB][cC][fF][fF]|6200[eE][eE]|3700[bB]3|[bB][bB]86[fF][cC])\b|#(?:6200[eE][eE]|3700[bB]3|[bB][bB]86[fF][cC])\b/;
-      return [...matches(re, code)].map((m) => m.index);
+        : /seedColor:\s*Colors\.deepPurple|0x[fF]{2}(?:6650[aA]4|[dD]0[bB][cC][fF][fF]|6200[eE][eE]|3700[bB]3|[bB][bB]86[fF][cC])\b|#(?:6200[eE][eE]|3700[bB]3|[bB][bB]86[fF][cC]|0[aA]7[eE][aA]4)\b|<HelloWave\b|<ParallaxScrollView\b/;
+      // One finding per file, like drawer-nav: the default tint and the
+      // starter-screen components are the same leftover.
+      const first = matches(re, code).next();
+      return first.done ? [] : [first.value.index];
     },
   },
   {

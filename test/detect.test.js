@@ -17,7 +17,7 @@ test("clean fixtures produce no findings", () => {
 test("React Native slop is caught", () => {
   const found = rulesIn("HomeScreen.tsx");
   for (const id of [
-    "slop-gradient", "gradient-text", "nested-cards", "status-dot", "unvirtualized-list",
+    "slop-gradient", "gradient-text", "template-theme", "nested-cards", "status-dot", "unvirtualized-list",
     "fixed-text-size", "emoji-icon", "sparkle-icon", "oops-error", "buzzword-copy",
     "welcome-back", "vague-button", "invented-stat", "glow-shadow", "hover-only",
     "keyboard-cover", "back-gesture", "drawer-nav",
@@ -267,8 +267,20 @@ test("Android color resources reach template-theme", () => {
   assert.deepStrictEqual(scanSource(src, "colors.xml").map((f) => f.rule), ["template-theme"]);
   // Android Studio writes template colors with an alpha byte (#AARRGGBB).
   const alpha = '<resources>\n  <color name="purple_500">#FF6200EE</color>\n  <color name="purple_700">#FF3700B3</color>\n</resources>\n';
-  assert.deepStrictEqual(scanSource(alpha, "colors.xml").map((f) => f.rule), ["template-theme", "template-theme"]);
+  assert.deepStrictEqual(scanSource(alpha, "colors.xml").map((f) => f.rule), ["template-theme"]);
   assert.deepStrictEqual(scanSource(".a { color: #FF6200EE; }\n", "a.css"), []);
+});
+
+test("template-theme catches Expo starter leftovers", () => {
+  // Issue #74 repro: the default tint plus starter-screen imports.
+  const src = 'const tintColorLight = "#0a7ea4";\nimport { HelloWave } from "@/components/HelloWave";\nimport ParallaxScrollView from "@/components/ParallaxScrollView";\n';
+  assert.deepStrictEqual(scanSource(src, "Colors.ts", { kind: "mobile" }).map((f) => f.rule), ["template-theme"]);
+  // Imports alone stay quiet so the components can be kept on purpose.
+  const importsOnly = 'import { HelloWave } from "@/components/HelloWave";\nimport ParallaxScrollView from "@/components/ParallaxScrollView";\n';
+  assert.deepStrictEqual(scanSource(importsOnly, "HomeScreen.tsx", { kind: "mobile" }), []);
+  // JSX use in a screen is flagged, once per file.
+  const used = 'import { HelloWave } from "@/components/HelloWave";\nimport ParallaxScrollView from "@/components/ParallaxScrollView";\n\nexport function HomeScreen() {\n  return (\n    <ParallaxScrollView>\n      <HelloWave />\n      <HelloWave />\n    </ParallaxScrollView>\n  );\n}\n';
+  assert.deepStrictEqual(scanSource(used, "HomeScreen.tsx", { kind: "mobile" }).map((f) => f.rule), ["template-theme"]);
 });
 
 test("transition-all flags `all` anywhere in a transition list", () => {
