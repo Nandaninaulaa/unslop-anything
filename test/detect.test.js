@@ -105,6 +105,18 @@ test("a JSX ignore comment on its own line silences the next line", () => {
   assert.deepStrictEqual(scanSource(spaced, "a.tsx"), []);
 });
 
+test("oops-error ignores log calls and thrown errors", () => {
+  // Issue #70: none of these strings reach the user.
+  assert.deepStrictEqual(scanSource('console.error("Something went wrong", err);\nthrow new Error("Oops");\n', "a.ts"), []);
+  assert.deepStrictEqual(scanSource('Log.e(TAG, "Something went wrong")\n', "a.kt"), []);
+  assert.deepStrictEqual(scanSource('logger.warn("Something went wrong");\n', "a.ts"), []);
+  assert.deepStrictEqual(scanSource('print("Oops")\n', "a.swift"), []);
+  assert.deepStrictEqual(scanSource('debugPrint("Oops")\n', "a.dart"), []);
+  assert.deepStrictEqual(scanSource('NSLog(@"Oops");\n', "a.m"), []);
+  // Real UI text still flags.
+  assert.deepStrictEqual(scanSource('const msg = "Oops, something went wrong";\n', "a.ts").map((f) => f.rule), ["oops-error"]);
+});
+
 test("ignore comments from before the rename still work", () => {
   const src = '// unslopovich-ignore oops-error\nconst a = "Oops";\nconst b = "Oops"; // unslopovich-ignore\nconst c = "Oops";\n';
   assert.deepStrictEqual(scanSource(src, "a.ts").map((f) => f.line), [4]);
