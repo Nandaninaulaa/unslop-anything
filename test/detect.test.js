@@ -261,6 +261,57 @@ test("slop-gradient reads Android #AARRGGBB colors", () => {
   assert.deepStrictEqual(scanSource(scrim, "a.css"), []);
 });
 
+test("slop-gradient reads only the gradient's own colors (issue #67)", () => {
+  const gradientLines = (src, file) =>
+    scanSource(src, file).filter((f) => f.rule === "slop-gradient").map((f) => f.line);
+  // A purple that is not one of the stops: the next rule, a child's style, the
+  // next statement, another prop. None of these gradients is purple.
+  const notStops = [
+    [".hero { background: linear-gradient(#ffffff, #f4f4f5); }\n.btn { color: #7c3aed; }\n", "a.css"],
+    ['<LinearGradient colors={["#ffffff", "#f4f4f5"]}>\n  <Text style={{ color: "#7c3aed" }}>Hi</Text>\n</LinearGradient>\n', "a.tsx"],
+    ['<div style={{ background: "linear-gradient(#fff, #f4f4f5)", color: "#7c3aed" }} />\n', "a.tsx"],
+    ["Rectangle().fill(LinearGradient(colors: [.white, .gray], startPoint: .top, endPoint: .bottom))\n  .foregroundStyle(.purple)\n", "a.swift"],
+    ["val bg = Brush.verticalGradient(listOf(Color.White, Color.LightGray))\nval accent = Color(0xFF7C3AED)\n", "a.kt"],
+    ['const g = ctx.createLinearGradient(0, 0, 200, 0);\ng.addColorStop(0, "#ffffff");\ng.addColorStop(1, "#f4f4f5");\nctx.strokeStyle = "#7c3aed";\n', "a.js"],
+  ];
+  for (const [src, file] of notStops) assert.deepStrictEqual(gradientLines(src, file), [], src);
+  // Purple stops wherever a gradient keeps them stay flagged: in the call, the
+  // element's props, SVG <stop> children, or the canvas and Android calls that
+  // follow a constructor taking no colors.
+  const stops = [
+    ['<svg><linearGradient id="g"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#ec4899"/></linearGradient></svg>\n', "a.html"],
+    ['<LinearGradient id="g" x1="0" y1="0" x2="1" y2="0">\n  <Stop offset="0" stopColor="#7c3aed" />\n</LinearGradient>\n', "a.tsx"],
+    ['const g = ctx.createLinearGradient(0, 0, 200, 0);\ng.addColorStop(0, "#7c3aed");\ng.addColorStop(1, "#ec4899");\n', "a.js"],
+    ["val d = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF7C3AED.toInt(), 0xFFEC4899.toInt()))\n", "a.kt"],
+    ["val d = GradientDrawable().apply {\n  colors = intArrayOf(0xFF7C3AED.toInt(), 0xFFEC4899.toInt())\n}\n", "a.kt"],
+    ["decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.deepPurple, Colors.pink])),\n", "a.dart"],
+    ['<div className="bg-[linear-gradient(90deg,#7c3aed,#ec4899)]" />\n', "a.tsx"],
+  ];
+  for (const [src, file] of stops) assert.deepStrictEqual(gradientLines(src, file), [1], src);
+  // Stops that need the whole expression or the variable's whole lifetime.
+  const spread = [
+    // A ">" inside a JSX expression does not end the <Stop> tag.
+    ['<LinearGradient id="g">\n  <Stop offset={i > 0 ? "0" : "1"} stopColor="#7c3aed" />\n</LinearGradient>\n', "a.tsx", [1]],
+    // The assignment and the constructor on different lines.
+    ['const g =\n  ctx.createLinearGradient(0, 0, 1, 0);\ng.addColorStop(0, "#7c3aed");\n', "a.js", [2]],
+    // Another gradient built before this one's stops are added.
+    ['const a = ctx.createLinearGradient(0, 0, 1, 0);\nconst b = ctx.createLinearGradient(0, 0, 1, 0);\na.addColorStop(0, "#7c3aed");\nb.addColorStop(0, "#ffffff");\n', "a.js", [1]],
+    // A colors assignment that spans lines.
+    ["val d = GradientDrawable()\nd.colors = intArrayOf(\n  0xFF7C3AED.toInt()\n)\n", "a.kt", [1]],
+    // A reassigned variable: each gradient keeps only its own stops.
+    ['let g = ctx.createLinearGradient(0, 0, 1, 0);\ng.addColorStop(0, "#ffffff");\ng = ctx.createLinearGradient(0, 0, 1, 0);\ng.addColorStop(0, "#7c3aed");\n', "a.js", [3]],
+    // A declaration of the same name in a nested block shadows the variable;
+    // it does not end it.
+    ['const g = ctx.createLinearGradient(0, 0, 1, 0);\nfunction helper() {\n  const g = null;\n}\ng.addColorStop(0, "#7c3aed");\n', "a.js", [1]],
+    // The variable ends with its block: a sibling function's own g is another gradient.
+    ['function a() {\n  const g = ctx.createLinearGradient(0, 0, 1, 0);\n  g.addColorStop(0, "#ffffff");\n}\nfunction b() {\n  const g = ctx.createLinearGradient(0, 0, 1, 0);\n  g.addColorStop(0, "#7c3aed");\n}\n', "a.js", [6]],
+    // A "$" identifier, and a member of another object that shares the name.
+    ['const $g = ctx.createLinearGradient(0, 0, 1, 0);\n$g.addColorStop(0, "#7c3aed");\n', "a.js", [1]],
+    ['const g = ctx.createLinearGradient(0, 0, 1, 0);\ng.addColorStop(0, "#ffffff");\nother.g.addColorStop(0, "#7c3aed");\n', "a.js", []],
+  ];
+  for (const [src, file, lines] of spread) assert.deepStrictEqual(gradientLines(src, file), lines, src);
+});
+
 test("0xRRGGBB colors are read alongside 0xFFRRGGBB", () => {
   // Issue #42: the common Swift form Color(hex: 0x7C3AED) was missed.
   const shadow = 'Text("x").shadow(color: Color(hex: 0x7C3AED), radius: 20)\n';

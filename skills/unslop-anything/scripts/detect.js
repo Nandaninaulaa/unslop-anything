@@ -234,6 +234,99 @@ function closeOf(text, open) {
   return text.length;
 }
 
+// The part of `rest` (the text after a gradient's constructor) during which
+// `variable` still holds that gradient: up to the end of the enclosing block,
+// or up to the variable's next assignment. A declaration of the same name in a
+// nested block (a helper's own `const g`) shadows it and does not end it.
+function bindingRegion(rest, variable) {
+  let depth = 0;
+  let blockEnd = rest.length;
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] === "{") depth++;
+    else if (rest[i] === "}" && --depth < 0) { blockEnd = i; break; }
+  }
+  const region = rest.slice(0, blockEnd);
+  const write = new RegExp(`(?<![\\w$.])(?:(?:const|let|var|val)\\s+)?${variable}\\s*=(?!=)`);
+  for (const m of matches(write, region)) {
+    const declaredInNestedBlock =
+      /^(?:const|let|var|val)\s/.test(m[0]) && blockDepth(region, m.index) > 0;
+    if (!declaredInNestedBlock) return region.slice(0, m.index);
+  }
+  return region;
+}
+
+function blockDepth(text, index) {
+  let depth = 0;
+  for (let i = 0; i < index; i++) {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}") depth--;
+  }
+  return depth;
+}
+
+const COLOR_SIGN =/#[0-9a-fA-F]{3,8}\b|0x[0-9a-fA-F]{6,8}\b|\b(?:rgba?|hsla?|oklch|oklab)\(|\bColors?\.\w|\.(?:purple|indigo|pink|blue|red|green|orange|yellow|white|black|gray|grey)\b/;
+
+// The text that holds the colors of the gradient named at `start`, so a color
+// after it (the next CSS rule, a child element's style, the next statement)
+// is never read as one of its stops (issue #67). Empty when the name is not a
+// gradient definition, e.g. a type like GradientDrawable.Orientation.
+function gradientScope(text, start, name) {
+  // An element: <LinearGradient colors={...}>, <gradient android:startColor=.../>,
+  // or an SVG <linearGradient> whose colors sit on its <stop> children. Other
+  // children (an expo-linear-gradient's <Text>) are content, not stops.
+  if (name.startsWith("<") || text[start - 1] === "<") {
+    const end = tagEnd(text, start);
+    if (end === -1) return text.slice(start, text.indexOf("\n", start) >>> 0);
+    let scope = text.slice(start, end + 1);
+    if (text[end - 1] !== "/") {
+      const close = text.indexOf(`</${name.replace(/^</, "")}`, end);
+      const body = text.slice(end + 1, close === -1 ? text.length : close);
+      // tagEnd() skips "{...}", so a ">" in a JSX expression (offset={i > 0 ...})
+      // does not cut the tag before its stopColor.
+      for (const stop of matches(/<stop\b/i, body)) {
+        const stopEnd = tagEnd(body, stop.index);
+        scope += body.slice(stop.index, stopEnd === -1 ? body.length : stopEnd + 1);
+      }
+    }
+    return scope;
+  }
+  // A call: linear-gradient(...), LinearGradient(colors: ...), Brush.linearGradient(...).
+  const paren = start + name.length + (text.slice(start + name.length).match(/^\s*/)?.[0].length ?? 0);
+  if (text[paren] !== "(") return "";
+  const end = closeOf(text, paren);
+  let scope = text.slice(start, end);
+  if (COLOR_SIGN.test(scope.slice(name.length))) return scope;
+  // A constructor that takes no colors (canvas createLinearGradient, Android
+  // GradientDrawable()): they come in a Kotlin .apply { } block right after,
+  // or in calls on the variable it is assigned to, for as long as that
+  // variable holds it (until it is assigned again).
+  const apply = /^\s*\.apply\s*\{/.exec(text.slice(end));
+  if (apply) scope += text.slice(end, closeOf(text, end + apply[0].length - 1));
+  // The assignment may sit on the line above: "const g =\n  ctx.create...".
+  const assigned = /([A-Za-z_$][\w$]*)\s*=\s*(?:new\s+)?[\w$.]*$/.exec(text.slice(Math.max(0, start - 200), start));
+  if (assigned) {
+    // Identifier characters only, so "$" is the one character to escape. The
+    // lookbehind is the identifier boundary: \b fails before "$g", and a
+    // preceding "." would make it another object's member (other.g).
+    const variable = assigned[1].replace(/\$/g, "\\$");
+    const region = bindingRegion(text.slice(end), variable);
+    for (const call of matches(new RegExp(`(?<![\\w$.])${variable}\\.(?:addColorStop|setColors)\\s*\\(|(?<![\\w$.])${variable}\\.colors\\s*=(?!=)`), region)) {
+      const after = call.index + call[0].length;
+      let tail;
+      if (call[0].endsWith("(")) {
+        tail = closeOf(region, after - 1);
+      } else {
+        // `.colors = intArrayOf(...)` may span lines: read the value through
+        // its closing bracket, or to the end of the line for a plain value.
+        const at = after + /^\s*(?:new\s+)?[\w$.]*\s*/.exec(region.slice(after))[0].length;
+        tail = "([{".includes(region[at]) ? closeOf(region, at) : region.indexOf("\n", call.index) >>> 0;
+      }
+      scope += region.slice(call.index, tail);
+    }
+  }
+  return scope;
+}
+
 // ---------- rules ----------
 // Each rule gets ctx { code, stack, file } and returns indexes into code.
 
@@ -251,8 +344,9 @@ const rules = [
       for (const m of matches(/(?<!<\/)(?:LinearGradient|linearGradient|RadialGradient|radialGradient|AngularGradient|Brush\.(?:linear|radial|horizontal|vertical|sweep)Gradient|linear-gradient|radial-gradient|GradientDrawable|<gradient\b)/, code)) {
         const lineStart = code.lastIndexOf("\n", m.index) + 1;
         if (/^\s*(?:import|export\s+\{|from)\b/.test(code.slice(lineStart, m.index))) continue;
-        const snippet = code.slice(m.index, m.index + 400);
-        if (hexColors(snippet, stack).some(isSlopHue) || SLOP_COLOR_NAME.test(snippet.slice(0, 250))) hits.push(m.index);
+        // Only the gradient's own stops count, not whatever follows it.
+        const stops = gradientScope(code, m.index, m[0]);
+        if (hexColors(stops, stack).some(isSlopHue) || SLOP_COLOR_NAME.test(stops)) hits.push(m.index);
       }
       // Tailwind: bg-gradient-to-r from-violet-600 to-fuchsia-500
       for (const m of matches(/["'`][^"'`\n]*\bbg-(?:gradient|linear|radial|conic)-[^"'`\n]*["'`]/, code)) {
