@@ -583,6 +583,18 @@ test("nested-cards ignores dotted subcomponents and ion-card parts, still flags 
   assert.deepStrictEqual(rulesFor("<ion-card><ion-card></ion-card></ion-card>", "a.html"), ["nested-cards"]);
 });
 
+test("img-no-alt accepts Angular [alt] bindings and Svelte {alt} shorthand", () => {
+  const rulesFor = (src, file) => scanSource(src, file).map((f) => f.rule);
+  assert.deepStrictEqual(rulesFor('<img [src]="u.avatar" [alt]="u.name">\n', "a.component.html"), []);
+  assert.deepStrictEqual(rulesFor('<img [src]="u.avatar" [attr.alt]="u.name">\n', "a.component.html"), []);
+  assert.deepStrictEqual(rulesFor("<img {src} {alt} />\n", "A.svelte"), []);
+  // Plain alt and Vue :alt keep working, and a missing alt is still reported.
+  assert.deepStrictEqual(rulesFor('<img src="x.png" alt="hi">\n', "a.html"), []);
+  assert.deepStrictEqual(rulesFor('<img :src="u" :alt="n">\n', "a.vue"), []);
+  assert.deepStrictEqual(rulesFor('<img [src]="u.avatar">\n', "a.component.html"), ["img-no-alt"]);
+  assert.deepStrictEqual(rulesFor("<img {src} />\n", "A.svelte"), ["img-no-alt"]);
+});
+
 test("unverified-claim allows one adjective between the number and the noun", () => {
   const rulesFor = (src) => scanSource(src, "a.tsx").map((f) => f.rule);
   assert.deepStrictEqual(rulesFor("<p>Join 10,000+ customers</p>\n"), ["unverified-claim"]);
