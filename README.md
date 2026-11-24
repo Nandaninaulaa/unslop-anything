@@ -14,12 +14,16 @@
   <a href="https://github.com/erkamyaman/unslop-anything/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/erkamyaman/unslop-anything/test.yml?branch=main&label=tests" alt="Tests"></a>
   <img src="https://img.shields.io/badge/deps-0-brightgreen" alt="No dependencies">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-E2862A" alt="MIT license"></a>
+  <br>
+  <a href="https://coderabbit.link/er-kam"><img src="https://img.shields.io/coderabbit/prs/github/erkamyaman/unslop-anything?labelColor=171717&color=FF570A&label=Reviewed+by+CodeRabbit" alt="Pull requests reviewed by CodeRabbit"></a>
   <a href="https://github.com/erkamyaman/unslop-anything"><img src="https://img.shields.io/github/stars/erkamyaman/unslop-anything?style=social" alt="GitHub stars"></a>
 </p>
 
 <p align="center">5,008,684 app reviews read · 1 purple gradient found · 31 detector rules · one command</p>
 
 <p align="center"><a href="research/README.md">The study behind it</a>: what people actually complain about, with the method and the code.</p>
+
+<p align="center">Made in Türkiye 🇹🇷 by <a href="https://github.com/erkamyaman">erKam Yaman</a>, who also made <a href="https://github.com/erkamyaman/rust-anything">rust-anything</a> and <a href="https://github.com/erkamyaman/safe-anything">safe-anything</a> · <a href="https://github.com/sponsors/erkamyaman">❤️ Sponsor me</a> · Sponsored by <a href="https://coderabbit.link/er-kam">CodeRabbit</a></p>
 
 ![Before: a purple gradient dashboard with sparkles, an AI promo, invented stats, and an ad in the middle of the screen. After: the same app as a native Android zone list with search, swipe actions for purge cache and DNS, a pending zone labeled in words, and one Add site button](docs/before-after.png)
 
@@ -227,10 +231,38 @@ If something it flags is wrong, [open an issue](https://github.com/erkamyaman/un
 
 Want to hear when a new version is out? Star the repo, then **Watch → Custom → Releases**.
 
+## Sponsors
+
+<p align="center">
+  <a href="https://github.com/erkamyaman/unslop-anything">unslop-anything</a> is free and open source. If it saved you a redesign, please consider sponsoring it.<br>
+  Your support keeps development going.
+</p>
+
+<p align="center"><sub>Your safety comes first: sponsors get a logo and a link here, nothing more. No paid recommendations and no setup guides for third-party AI API resellers, so nothing here steers your code, keys or data somewhere you didn't choose.</sub></p>
+
+<p align="center">
+  <a href="https://coderabbit.link/er-kam">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/company-dark.svg">
+      <img src="docs/sponsors/company-light.svg" width="800" alt="Company sponsor: CodeRabbit">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/sponsors/erkamyaman">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/sponsors-dark.svg">
+      <img src="docs/sponsors/sponsors-light.svg" width="800" alt="Sponsors: Santosh Yadav, Hakan Soytürk, Ali Yilmaz, Ashley Hunter, Fatih Uzuntaş">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/sponsors/erkamyaman"><img src="https://img.shields.io/badge/Become_a_sponsor-%E2%9D%A4-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Become a sponsor"></a>
+  <a href="https://buymeacoffee.com/erkamyaman"><img src="https://img.shields.io/badge/Buy_me_a_coffee-%E2%98%95-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black" alt="Buy me a coffee"></a>
+</p>
+
 ## License
 
 MIT © [Erkam Yaman](https://github.com/erkamyaman)
-
-If it saved you a redesign, you can [sponsor me](https://github.com/sponsors/erkamyaman).
-
-<sub>Your safety comes first: sponsors get a logo and a link here, nothing more. No paid recommendations and no setup guides for third-party AI API resellers, so nothing here steers your code, keys or data somewhere you didn't choose.</sub>
