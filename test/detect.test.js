@@ -512,6 +512,15 @@ test("clickable-div flags a href-less anchor with onClick", () => {
   assert.deepStrictEqual(findingsFor('<a onClick={go} tabIndex={0}>Go</a>\n').map((f) => f.rule), ["clickable-div"]);
 });
 
+test("focus-removed flags a bare focus:outline-none, not one with a ring replacement", () => {
+  const rulesFor = (src) => scanSource(src, "a.tsx").map((f) => f.rule);
+  assert.deepStrictEqual(rulesFor('<input className="focus:outline-none" />\n'), ["focus-removed"]);
+  assert.deepStrictEqual(rulesFor('<input className="outline-none" />\n'), ["focus-removed"]);
+  // A replacement focus style in the same string (or nearby) keeps it quiet.
+  assert.deepStrictEqual(rulesFor('<input className="focus:outline-none focus:ring-2" />\n'), []);
+  assert.deepStrictEqual(rulesFor('<input className="focus:outline-none focus-visible:ring-2" />\n'), []);
+});
+
 test("unverified-claim allows one adjective between the number and the noun", () => {
   const rulesFor = (src) => scanSource(src, "a.tsx").map((f) => f.rule);
   assert.deepStrictEqual(rulesFor("<p>Join 10,000+ customers</p>\n"), ["unverified-claim"]);
